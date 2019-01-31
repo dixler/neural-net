@@ -7,92 +7,31 @@ import (
    "./neural"
    "./pong"
 )
-func testDecision() {
-   blueprint := []int{6, 4, 4, 3}
-
-   for _, val := range blueprint {
-      fmt.Println(val)
-   }
-
-   nn := neural.GenerateNN(blueprint,
-      func(input []int) int {
-         max := 0
-         idx := 0
-         for i, val := range input {
-            if val > max {
-               max = val
-               idx = i
-            }
-         }
-         return idx
-      })
-   nn.DumpNN()
-   fmt.Println("result", nn.Process([]int{3, 3, 3, 3, 3, 3}))
-   return
-}
 func genBlueprint(num_layers, inputs, outputs int) []int {
    blueprint := make([]int, num_layers, num_layers)
    blueprint[0] = inputs
    for i := 1; i < num_layers-1; i++ {
-      blueprint[i] = 6
+      blueprint[i] = 1
    }
    blueprint[len(blueprint)-1] = outputs
    return blueprint
-}
-func testBreed() {
-   // Randomly generated NN
-   num_layers := 100
-   blueprint := genBlueprint(num_layers, 6, 3)
-   activation := func(input []int) int {
-         max := 0
-         idx := 0
-         for i, val := range input {
-            if val > max {
-               max = val
-               idx = i
-            }
-         }
-         return idx
-      }
-   mismatches := 0
-   nn1 := neural.GenerateNN(blueprint, activation)
-   nn2 := neural.GenerateNN(blueprint, activation)
-
-   res_1 := nn1.Process([]int{1,1,1,1,1,1})
-
-   child := neural.Breed(nn1, nn2)
-
-   for i := 0; i < 10000; i++ {
-      res_child := child.Process([]int{1,1,1,1,1,1})
-
-
-      if res_1 != res_child {
-         fmt.Println("mismatch", i, res_1, res_child)
-         child = neural.Breed(nn1, child)
-         mismatches++
-      }
-      child = neural.Breed(nn1, child)
-   }
-   fmt.Println("mismatches:", mismatches)
-
-
-
 }
 
 func testWorld() {
    type pair struct {
       score int
+      bounces int
       nn neural.NeuralNet
    }
-   num_networks := 1000
+   num_networks := 2000
    networks := make([]neural.NeuralNet, num_networks, num_networks)
-   blueprint := genBlueprint(3, 6, 3)
+   blueprint := []int{10, 10}
    activation := func(input []int) int {
-      max := 0
+      max := input[0]
       idx := 0
-      for i, val := range input {
-         if val > max {
-            max = val
+      for i, cur := range input {
+         if cur > max {
+            max = cur
             idx = i
          }
       }
@@ -100,8 +39,17 @@ func testWorld() {
    }
    ch := make(chan pair)
 
+   // monitoring:
+   first := true
+   last_score := 0
    for i, _ := range networks {
-      networks[i] = neural.GenerateNN(blueprint, activation)
+      go func(i int) {
+         networks[i] = neural.GenerateNN(blueprint, activation)
+         ch<-pair{}
+      }(i)
+   }
+   for i := 0; i < len(networks); i++ {
+      <-ch
    }
 
    for i:=0;; i++{
@@ -110,32 +58,57 @@ func testWorld() {
             w := pong.GenWorld(100, 200)
             for ;; {
                input := w.GetState()
-               decision := nn.Process(input)
+               filtered_input := []int{input[1], input[5]}
+               decision := nn.Process(filtered_input)
                //fmt.Println("decision:", decision)
                if !w.Tick(decision) {
-                  ch<-pair{score: w.Score, nn: nn}
+                  ch<-pair{score: w.Score, bounces: w.Bounces, nn: nn}
                   return
                }
             }
          }(network)
       }
-      best_score, best_nn := -1, neural.NeuralNet{}
-      for i := 0; i < num_networks; i++ {
+      cur_result := <-ch
+      best_score, best_nn, best_bounces := cur_result.score, cur_result.nn, cur_result.bounces
+      for i := 1; i < num_networks; i++ {
          cur_result := <-ch
-         cur_score, cur_nn :=  cur_result.score, cur_result.nn
+         cur_score, cur_nn, cur_bounces :=  cur_result.score, cur_result.nn, cur_result.bounces
          if cur_score > best_score {
-            best_score, best_nn = cur_score, cur_nn
+            best_score, best_nn, best_bounces = cur_score, cur_nn, cur_bounces
          }
       }
 
-      fmt.Println(i, ":", best_score)
+      // metrics
+      if first {
+         last_score = best_score
+         fmt.Println(i, ":", best_bounces, best_score)
+         first = false
+      } else if best_score > last_score {
+         last_score = best_score
+         fmt.Println(i, ":", best_bounces, best_score)
+      }
       // breeding function
       networks[0] = best_nn
-      for i := 1; i < num_networks/10; i++{
-         networks[i] = neural.Breed(networks[i], best_nn)
+      for i := num_networks/10; i < num_networks; i++{
+         go func(i int) {
+            networks[i] = neural.GenerateNN(blueprint, activation)
+            ch<-pair{}
+         }(i)
       }
       for i := num_networks/10; i < num_networks; i++{
-         networks[i] = neural.GenerateNN(blueprint, activation)
+         <-ch
+      }
+
+
+
+      for i := 1; i < num_networks; i++{
+         go func(i int) {
+            networks[i] = neural.Breed(best_nn, networks[i])
+            ch<-pair{}
+         }(i)
+      }
+      for i := 1; i < num_networks; i++{
+         <-ch
       }
    }
 

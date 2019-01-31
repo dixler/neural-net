@@ -101,15 +101,16 @@ func dotProduct(a, b []int) int {
 
 const PRECISION = 10000
 func inherit(feature_a, feature_b int) int {
-   /*
-   var a_likeness float64 = rand.Float64()
-   var b_likeness float64 = 1.0-a_likeness
-   return int(float64(feature_a)*a_likeness+float64(feature_b)*b_likeness)
-   */
-   if rand.Int() % 2 == 0 {
-      return feature_a
+   if rand.Int() % 3 > 0 {
+      var a_likeness float64 = rand.Float64()/2.0+0.5
+      var b_likeness float64 = 1.0-a_likeness
+      return int(float64(feature_a)*a_likeness+float64(feature_b)*b_likeness)
+   } else {
+      if rand.Int() % 2 == 0 {
+         return feature_a
+      }
+      return feature_b
    }
-   return feature_b
 }
 
 func breed(a, b unit) unit {

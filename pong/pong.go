@@ -1,6 +1,6 @@
 package pong
 import (
-   "math"
+   //"math"
 )
 
 type object struct {
@@ -18,6 +18,7 @@ type World struct {
    width    int
    height   int
    Score    int
+   Bounces  int
 }
 
 const (
@@ -49,9 +50,9 @@ func (w *World) Tick (action int) bool {
    deltaY := 0
    switch action {
       case Up:
-         deltaY--
+         deltaY-=1
       case Down:
-         deltaY++
+         deltaY+=1
    }
 
    if deltaY < 0 || deltaY+w.paddle.height > w.height {
@@ -61,6 +62,7 @@ func (w *World) Tick (action int) bool {
    w.paddle.y += deltaY
    if collision(w.paddle, w.ball) {
       w.ball.dx *= -1
+      w.Bounces++
       w.Score += 10000000
    }
    if w.ball.x  > w.width{
@@ -74,20 +76,18 @@ func (w *World) Tick (action int) bool {
       return false
    }
 
-   pad_midpoint_x, pad_midpoint_y := w.paddle.x, w.paddle.y+w.paddle.height/2
+   _, pad_midpoint_y := w.paddle.x, w.paddle.y+w.paddle.height/2
 
-   w.paddle.x, w.paddle.y = w.paddle.x+w.paddle.dx, w.paddle.y+w.paddle.dy
+   _, w.paddle.y = w.paddle.x+w.paddle.dx, w.paddle.y+w.paddle.dy
    w.ball.x, w.ball.y = w.ball.x+w.ball.dx, w.ball.y+w.ball.dy
 
-   distance := math.Pow(float64(w.ball.x - pad_midpoint_x), 2.0) + math.Pow(float64(w.ball.y - pad_midpoint_y), 2.0)
+   //distance := math.Pow(float64(w.ball.x - pad_midpoint_x), 2.0) + math.Pow(float64(w.ball.y - pad_midpoint_y), 2.0)
+   distance := -((w.ball.y - pad_midpoint_y)*(w.ball.y - pad_midpoint_y))
 
-   w.Score += int(100000/distance)
+   w.Score += distance
    return true
 }
 
-func (w World) GetScore () int {
-   return w.Score
-}
 func (w World) GetState () []int {
    return []int{
       w.ball.x,
